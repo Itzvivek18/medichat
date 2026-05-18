@@ -32,14 +32,14 @@ export function AuthProvider({ children }) {
   };
 
   const apiCall = async (path, options = {}) => {
-    const res = await fetch(`http://localhost:8000${path}`, {
-      ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...options.headers,
-      },
-    });
+   const res = await fetch(`${process.env.REACT_APP_API_URL}${path}`, {
+  ...options,
+  headers: {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...options.headers,
+  },
+});
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: 'Request failed' }));
       throw new Error(err.detail || 'Request failed');
