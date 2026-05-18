@@ -25,13 +25,12 @@ from pydantic import BaseModel, EmailStr
 import jwt
 
 # ── Config ────────────────────────────────────────────────────────────────────
-SECRET_KEY = "medichat-secret-key-change-in-production"
+SECRET_KEY = os.environ.get("SECRET_KEY", "fallback-dev-key")
 ALGORITHM  = "HS256"
 TOKEN_EXPIRE_HOURS = 24
 
 # Path to your exported model ZIP (or already-extracted folder)
-MODEL_ZIP_PATH    = "./medical-chatbot-model.zip"
-MODEL_FOLDER_PATH = "./model"
+
 
 # ── App setup ─────────────────────────────────────────────────────────────────
 app = FastAPI(title="MediChat AI API", version="1.0.0")
@@ -86,51 +85,36 @@ DISCLAIMER = (
 
 # ── Model loading ─────────────────────────────────────────────────────────────
 
+BASE_MODEL   = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+ADAPTER_REPO = "Vivekumar454/medichat"  # HF model repo
+
 def load_model():
     global model, tokenizer, device
-
     from transformers import AutoTokenizer, AutoModelForCausalLM
     from peft import PeftModel
 
-    print("🔍 Looking for model...")
-
-    # Extract ZIP if needed
-    if not Path(MODEL_FOLDER_PATH).exists():
-        if Path(MODEL_ZIP_PATH).exists():
-            print(f"📦 Extracting {MODEL_ZIP_PATH}...")
-            with zipfile.ZipFile(MODEL_ZIP_PATH, "r") as z:
-                z.extractall(".")
-            print("✅ Extracted!")
-        else:
-            print("⚠️  No model ZIP found. Running in DEMO mode (no real inference).")
-            return
-
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    print(f"💻 Using device: {device}")
-
-    base_model_name = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
-    dtype = torch.float16 if device == "cuda" else torch.float32
+    dtype  = torch.float16 if device == "cuda" else torch.float32
 
     print("📥 Loading tokenizer...")
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_FOLDER_PATH)
+    tokenizer = AutoTokenizer.from_pretrained(ADAPTER_REPO)
     tokenizer.pad_token = tokenizer.eos_token
 
     print("📥 Loading base model...")
     base_model = AutoModelForCausalLM.from_pretrained(
-        base_model_name,
+        BASE_MODEL,
         torch_dtype=dtype,
         device_map="auto" if device == "cuda" else None,
     )
 
-    print("🔗 Loading LoRA adapter...")
-    model = PeftModel.from_pretrained(base_model, MODEL_FOLDER_PATH)
+    print("🔗 Applying LoRA adapter...")
+    model = PeftModel.from_pretrained(base_model, ADAPTER_REPO)
     model.eval()
 
     if device == "cpu":
         model = model.to(device)
 
     print("✅ Model ready!")
-
 
 def strip_opener(text: str) -> str:
     lower = text.lower()
